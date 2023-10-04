@@ -3,14 +3,20 @@
   import * as TWEEN from "@tweenjs/tween.js";
   import { onMount } from "svelte";
 
+  let sideSelected = 0; // 0.head 1.tail
+  let finalSide = 0; // final side after flip completed
+  let isSpin = false; // indicate coin is currently spinning
+  let isSpinCompleted = false;
+  let isWin = false;
+
+  $: isWin = finalSide === sideSelected;
+
   let gameContainer: any;
 
   const headImgUrl = "https://pixijs.com/assets/flowerTop.png";
   const tailImgUrl = "https://pixijs.com/assets/eggHead.png";
   const headTexture = PIXI.Texture.from(headImgUrl);
   const tailTexture = PIXI.Texture.from(tailImgUrl);
-
-  let sideSelected = 0; // 0.head 1.tail
 
   // create a new Sprite using the texture
   const character = new PIXI.Sprite(headTexture);
@@ -20,21 +26,38 @@
   // delclare tween for rotation
   let rot = { rotation: 0 };
 
-  const tween = new TWEEN.Tween(rot, false)
-    .easing(TWEEN.Easing.Quadratic.InOut)
-    .onUpdate((v: { rotation: number }) => {
-      character.rotation = v.rotation;
-      // todo: random rotation with side
-      character.texture =
-        Math.round(v.rotation % 2) === 0 ? headTexture : tailTexture;
-    })
+  const tween = new TWEEN.Tween(rot, false).easing(
+    TWEEN.Easing.Quadratic.InOut
+  );
+
+  function randomInteger(min: number, max: number) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
 
   const startFlipCoin = () => {
-    // todo: random rotation
-    tween.to({ rotation: 100 }, 3000).start();
+    if (isSpin) return;
+
+    isSpin = true;
+    isSpinCompleted = false;
+
+    tween
+      .to({ rotation: randomInteger(100, 200) }, 3000)
+      .onUpdate((v: { rotation: number }) => {
+        character.rotation = v.rotation;
+        // todo: random rotation with side
+        const side = Math.round(v.rotation % 2);
+        character.texture = side === 0 ? headTexture : tailTexture;
+      })
+      .onComplete((v: { rotation: number }) => {
+        isSpin = false;
+        isSpinCompleted = true;
+        finalSide = Math.round(v.rotation % 2);
+      })
+      .start();
   };
 
   const setSide = (idx: number) => {
+    isSpinCompleted = false;
     sideSelected = idx;
     character.texture = sideSelected === 0 ? headTexture : tailTexture;
   };
@@ -79,6 +102,7 @@
       <p class="uppercase text-sm">Pick Side</p>
       <div class="flex space-x-4 py-4">
         <button
+          disabled={isSpin}
           class="coin-btn {sideSelected == 0 ? 'selected' : ''}"
           on:click={() => setSide(0)}
         >
@@ -89,6 +113,7 @@
           />
         </button>
         <button
+          disabled={isSpin}
           class="coin-btn {sideSelected == 1 ? 'selected' : ''}"
           on:click={() => setSide(1)}
         >
@@ -100,7 +125,18 @@
         </button>
       </div>
       <div class="flex">
-        <button class="btn" on:click={startFlipCoin}>FLIP COIN</button>
+        <button class="btn" disabled={isSpin} on:click={startFlipCoin}
+          >FLIP COIN</button
+        >
+      </div>
+      <div class="py-4">
+        {#if isSpinCompleted}
+          {#if isWin}
+            <p class="label-result win">You Win !</p>
+          {:else}
+            <p class="label-result lose">You Lose !</p>
+          {/if}
+        {/if}
       </div>
     </div>
   </div>
@@ -110,12 +146,22 @@
   .coin-btn {
     @apply bg-black/20 hover:bg-white/10 p-4 rounded-xl cursor-pointer transition;
     &.selected {
-      @apply outline outline-2 outline-white/80;
+      @apply outline outline-2 outline-white/80 disabled:outline-white/40;
     }
   }
   .btn {
     @apply flex-1 bg-yellow-400 hover:bg-yellow-300 
     border-b-4 border-yellow-600 hover:border-yellow-500 
+    disabled:bg-yellow-600
     px-6 py-3 rounded-lg text-black font-bold transition;
+  }
+  .label-result {
+    @apply text-center text-lg;
+    &.win {
+      @apply text-green-500;
+    }
+    &.lose {
+      @apply text-red-500;
+    }
   }
 </style>
