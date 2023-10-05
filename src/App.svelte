@@ -2,6 +2,9 @@
   import * as PIXI from "pixi.js";
   import * as TWEEN from "@tweenjs/tween.js";
   import { onMount } from "svelte";
+  import { sound, Sound } from "@pixi/sound";
+
+  const winRate = 0.4; // winrate chance is 40%
 
   let sideSelected = 0; // 0.head 1.tail
   let finalSide = 0; // final side after flip completed
@@ -13,10 +16,35 @@
 
   let gameContainer: any;
 
-  const headImgUrl = "https://pixijs.com/assets/flowerTop.png";
-  const tailImgUrl = "https://pixijs.com/assets/eggHead.png";
+  const headImgUrl = "head.png";
+  const tailImgUrl = "tail.png";
   const headTexture = PIXI.Texture.from(headImgUrl);
   const tailTexture = PIXI.Texture.from(tailImgUrl);
+
+  const bgm = Sound.from({
+    url: "lazy-village.mp3",
+    preload: true,
+    autoPlay: true,
+    loop: true,
+    volume: 0.7,
+  });
+
+  const btnSfx = Sound.from({
+    url: "click.mp3",
+    preload: true,
+  });
+
+  const spinSfx = Sound.from({
+    url: "spin.mp3",
+    preload: true,
+    loop: true,
+    speed: 2,
+  });
+
+  const winSfx = Sound.from({
+    url: "win.mp3",
+    preload: true,
+  });
 
   // create a new Sprite using the texture
   const character = new PIXI.Sprite(headTexture);
@@ -25,10 +53,7 @@
 
   // delclare tween for rotation
   let rot = { rotation: 0 };
-
-  const tween = new TWEEN.Tween(rot, false).easing(
-    TWEEN.Easing.Quadratic.InOut
-  );
+  let tween = new TWEEN.Tween(rot, false).easing(TWEEN.Easing.Quadratic.InOut);
 
   function randomInteger(min: number, max: number) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -36,30 +61,85 @@
 
   const startFlipCoin = () => {
     if (isSpin) return;
+    spinSfx.stop();
+    btnSfx.play();
 
     isSpin = true;
     isSpinCompleted = false;
+    spinSfx.play();
 
-    tween
-      .to({ rotation: randomInteger(100, 200) }, 3000)
+    // RNG
+    if (Math.random() < winRate) {
+      finalSide = sideSelected;
+    } else {
+      finalSide = sideSelected == 0 ? 1 : 0;
+    }
+    console.log({
+      winRate,
+      sideSelected,
+      finalSide,
+      isWin: sideSelected === finalSide,
+    });
+
+    // reset side facing to begin anim
+    if (sideSelected == 0) {
+      // head
+      rot = { rotation: 0 };
+    } else {
+      // tail
+      rot = { rotation: Math.PI };
+    }
+
+    tween = new TWEEN.Tween(rot, false)
+      .easing(TWEEN.Easing.Quadratic.InOut)
+      .to({ rotation: finalSide == 0 ? 40 * Math.PI : 41 * Math.PI }, 3000)
       .onUpdate((v: { rotation: number }) => {
-        character.rotation = v.rotation;
-        // todo: random rotation with side
-        const side = Math.round(v.rotation % 2);
+        const cosAbs = Math.abs(Math.cos(v.rotation));
+        character.scale.x = cosAbs;
+        const cos = Math.cos(v.rotation);
+        const side = cos >= 0 ? 0 : 1;
         character.texture = side === 0 ? headTexture : tailTexture;
       })
       .onComplete((v: { rotation: number }) => {
+        spinSfx.stop();
         isSpin = false;
         isSpinCompleted = true;
-        finalSide = Math.round(v.rotation % 2);
+        if (sideSelected == finalSide) {
+          winSfx.play();
+        }
       })
+      .stop()
       .start();
   };
 
   const setSide = (idx: number) => {
+    spinSfx.stop();
+    btnSfx.play();
     isSpinCompleted = false;
+
+    // reset side facing to begin anim
+    if (sideSelected == 0) {
+      // head
+      rot = { rotation: 0 };
+    } else {
+      // tail
+      rot = { rotation: Math.PI };
+    }
+
     sideSelected = idx;
-    character.texture = sideSelected === 0 ? headTexture : tailTexture;
+
+    tween = new TWEEN.Tween(rot, false)
+      .easing(TWEEN.Easing.Quadratic.InOut)
+      .to({ rotation: sideSelected == 0 ? 0 : Math.PI }, 500)
+      .onUpdate((v: { rotation: number }) => {
+        const cosAbs = Math.abs(Math.cos(v.rotation));
+        character.scale.x = cosAbs;
+        const cos = Math.cos(v.rotation);
+        const side = cos >= 0 ? 0 : 1;
+        character.texture = side === 0 ? headTexture : tailTexture;
+      })
+      .stop()
+      .start();
   };
 
   let ticker = PIXI.Ticker.shared;

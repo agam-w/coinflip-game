@@ -25,6 +25,7 @@
     "vite": "^4.4.5"
   },
   "dependencies": {
+    "@pixi/sound": "^5.2.1",
     "@tweenjs/tween.js": "^21.0.0",
     "pixi.js": "^7.3.1"
   }
